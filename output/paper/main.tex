@@ -127,26 +127,7 @@ versus 50.5\% for GP-Direct's nominally 90\% credible intervals. This
 calibration advantage persists until approximately $N = 40$, where both models
 converge to well-calibrated predictions with sufficient data.
 
-Figure~\ref{fig:overview} summarizes the full pipeline from raw cycling data
-to calibrated predictions.
 
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=\textwidth]{../figures/fig1_method_overview.pdf}
-  \caption{Overview of the Selective MT-GP pipeline.
-  Li-ion source cells (blue) and Zn-ion target cells (orange) each undergo
-  chemistry-specific feature extraction. The exponential decay rate
-  $\text{exp\_b}$ is identified as a transferable feature (shared kernel,
-  green), while the differential capacity variance $\Delta\mathrm{var}(dQ/dV)$
-  is treated as a Zn-ion-private feature (red) because its absolute scale and
-  mechanistic origin differ fundamentally across chemistries. The two kernel
-  components are combined additively ($k_{\mathrm{sel}} = k_{\mathrm{shared}}
-  + k_{\mathrm{private}}$) to form the Selective MT-GP, which outputs a
-  full predictive posterior $\mu^*(N_\mathrm{cyc}) \pm \sigma^*(N_\mathrm{cyc})$
-  in log-cycle space. Zn-ion cells additionally require PELT-based activation
-  detection before feature extraction.}
-  \label{fig:overview}
-\end{figure}
 
 % ============================================================
 \section{Data}
@@ -248,7 +229,7 @@ improves overlap between the LIB and ZIB marginal distributions.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\columnwidth]{../figures/fig2_feature_distributions.pdf}
+  \includegraphics[width=\columnwidth]{../figures/fig1_feature_distributions.pdf}
   \caption{Feature distributions for Li-ion (blue) and Zn-ion (orange) cells.
   \textbf{Left}: Raw $\Delta\mathrm{var}(dQ/dV)$ showing the ${\sim}1000{\times}$
   scale gap between chemistries. \textbf{Right}: Log-transformed feature
@@ -491,7 +472,7 @@ transfer.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\columnwidth]{../figures/fig4_mechanism_analysis.pdf}
+  \includegraphics[width=\columnwidth]{../figures/fig3_mechanism_analysis.pdf}
   \caption{Mechanism analysis of normalization failure modes. \textbf{(a)}
   Per-domain normalization induces a spurious inter-task anti-correlation
   ($\hat{\rho} = -0.47$) because ZIB cells with moderate absolute
@@ -541,7 +522,7 @@ studied here.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\columnwidth]{../figures/fig3_final_comparison.pdf}
+  \includegraphics[width=\columnwidth]{../figures/fig2_rmse_comparison.pdf}
   \caption{Median RMSE vs.\ number of Zn-ion training cells ($N$) for all four
   models (200 Monte Carlo trials, error bands show interquartile range).
   The crossover near $N \approx 20$ is marked by the vertical dashed
@@ -590,7 +571,7 @@ single-task GP as well.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\columnwidth]{../figures/fig5_uncertainty_calibration.pdf}
+  \includegraphics[width=\columnwidth]{../figures/fig4_uncertainty_calibration.pdf}
   \caption{Uncertainty calibration vs.\ number of Zn-ion training cells.
   \textbf{Top}: 90\% credible interval coverage (dashed line at 90\% ideal).
   \textbf{Bottom}: Gaussian NLL in log-cycle space (lower is better).
