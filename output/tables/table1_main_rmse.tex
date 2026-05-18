@@ -1,0 +1,19 @@
+\begin{table}[htbp]
+\centering
+\caption{Median RMSE (cycles) across 200 Monte Carlo trials on held-out Zn-ion cells.
+IQR in parentheses. \textbf{Bold}: best RMSE per $N$.
+$^\dagger$: Selective MT-GP statistically outperforms Shuffled baseline
+(Wilcoxon signed-rank, $p<0.05$).}
+\label{tab:main_rmse}
+\setlength{\tabcolsep}{7pt}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Model} & $N=2$ & $N=5$ & $N=10$ & $N=20$ & $N=40$ \\
+\midrule
+Selective MT-GP & 48.8 (45--56) & 45.9 (44--50) & 44.8 (44--47) & 43.4 (42--45)$^\dagger$ & 41.0 (40--42)$^\dagger$ \\
+Standard MT-GP & 49.2 (46--56) & 47.9 (46--52) & 46.0 (44--48) & 44.0 (43--46) & 41.7 (41--43) \\
+GP-Direct & 48.0 (44--57) & 45.5 (43--50) & \textbf{44.0 (43--47)} & \textbf{43.0 (42--44)} & \textbf{40.1 (37--42)} \\
+Shuffled MT-GP & \textbf{44.2 (44--45)} & \textbf{44.2 (44--45)} & \textbf{44.1 (44--45)} & 44.1 (43--44) & 43.6 (42--44) \\
+\bottomrule
+\end{tabular}
+\end{table}

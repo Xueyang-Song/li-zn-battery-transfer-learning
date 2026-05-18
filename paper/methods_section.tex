@@ -1,0 +1,316 @@
+% ============================================================
+%  Section 3 — Methods
+%  "Transfer Learning from Lithium-Ion to Zinc-Ion Batteries:
+%   Cross-Chemistry Capacity Prediction with Limited Target Data"
+% ============================================================
+
+\section{Methods}
+
+\subsection{Data preprocessing and quality control}
+\label{sec:preprocessing}
+
+Raw cycling data were drawn from three publicly available sources: (i) the
+Severson/MATR dataset comprising 83 lithium iron phosphate (LFP) cells
+\cite{severson2019}, (ii) 12 lithium cobalt oxide (LCO) cells from the CALCE
+repository, and (iii) 130 zinc-ion manganese dioxide (Zn/MnO\textsubscript{2})
+cells from the BatteryLife dataset \cite{tan2024}, which spans three
+experimental batches collected under distinct temperature conditions.
+Together, the 95 Li-ion cells form the \emph{source} task ($t=0$) and the
+130 Zn-ion cells form the \emph{target} task ($t=1$).
+
+All cells were passed through a ten-step quality-control pipeline prior to
+any feature extraction.
+(1) Cells with fewer than 50 recorded cycles were excluded, as the early-cycle
+window used for feature extraction (cycles 2--100) would otherwise be
+incomplete.
+(2) Individual cycles whose measured discharge capacity fell below 95\% of the
+cell's nominal rated capacity were flagged as incomplete---typically arising
+from mid-test interruptions or instrumentation dropouts---and removed from
+further analysis.
+(3) Voltage and capacity traces were checked for monotonicity within each
+half-cycle and non-physical discontinuities were corrected by linear
+interpolation between flanking valid measurements.
+(4) Duplicate cycle indices, which occasionally appear in raw BatteryLife
+exports, were deduplicated by retaining the record with the higher measured
+capacity.
+(5) Cells missing full voltage--capacity ($V$--$Q$) curves for at least 10
+cycles in the early window were excluded from the FPCA pathway and assigned
+only the scalar $\Delta Q_{\mathrm{var}}$ feature, with FPCA scores imputed
+to the task-level mean; such cells constituted fewer than 3\% of the corpus.
+(6) Cycle-life labels were defined as the first cycle at which normalised
+discharge capacity fell and remained below the end-of-life (EOL) threshold;
+EOL was set to 80\% of the reference capacity $Q_{\mathrm{ref}}$ (defined in
+Section~\ref{sec:activation}).
+(7) Cells that never reached the EOL threshold within the available cycling
+record were treated as right-censored and excluded from supervised regression
+training, though they were retained for qualitative analysis.
+(8) Current-rate (C-rate) metadata were verified; the small number of CALCE
+cells cycled at non-standard rates were normalised to equivalent cycle
+counts via Ah-throughput scaling before merging with the Severson corpus.
+(9) All capacity values were expressed as a fraction of $Q_{\mathrm{ref}}$
+(see Section~\ref{sec:activation}) for cross-cell comparability.
+(10) The final dataset was split into a fixed held-out test set of 10 Zn-ion
+cells, drawn to be representative of all three BatteryLife batches, with the
+remainder used for training and validation sweeps (Section~\ref{sec:protocol}).
+
+A critical design decision was that the functional principal component
+analysis (FPCA) basis was \emph{fitted exclusively on Li-ion data} and
+Zn-ion curves were subsequently \emph{projected} onto this fixed basis
+without refitting (Section~\ref{sec:fpca}).  This asymmetry is intentional:
+refitting the basis on Zn-ion data would destroy the shared representational
+space through which knowledge is transferred, because any linear relationship
+between the source and target latent features would be lost after independent
+rotations.
+
+\subsection{Activation period detection}
+\label{sec:activation}
+
+Unlike Li-ion cells, Zn/MnO\textsubscript{2} batteries frequently exhibit a
+monotonic \emph{capacity increase} during an initial activation period,
+attributed to progressive electrolyte wetting and electrochemical conditioning
+of the MnO\textsubscript{2} cathode \cite{tan2024}.  This behaviour
+invalidates the standard convention of normalising capacity by the
+first-cycle discharge value: applying that convention would assign
+normalised capacities greater than unity to mid-life cycles, introducing
+data leakage because the true capacity maximum $Q_{\max}$ is observed
+\emph{during} the experiment, not before it.  Treating $Q_{\max}$ as
+the reference would likewise leak future information into the training
+features.
+
+To determine the cycle $N_{\mathrm{act}}$ at which sustained monotonic
+degradation begins, we applied the Pruned Exact Linear Time (PELT)
+changepoint detection algorithm \cite{truong2020} from the
+\texttt{ruptures} library, using an $\ell_2$ (least-squares) cost model and
+a penalty term calibrated by the Bayesian information criterion.
+A candidate changepoint was accepted only if the post-break segment spanned
+at least 10 consecutive cycles of non-increasing capacity, ensuring that
+brief transient dips did not incorrectly terminate the activation window.
+When PELT detected no statistically significant changepoint---occurring in
+approximately 8\% of Zn-ion cells that showed monotonic degradation from
+cycle 1---$N_{\mathrm{act}}$ was set to $\operatorname{argmax}_n Q(n)$ as a
+deterministic fallback.  For all Li-ion cells, no activation period was
+observed and $N_{\mathrm{act}}$ was fixed at cycle 1.
+
+The reference capacity was defined as $Q_{\mathrm{ref}} = Q(N_{\mathrm{act}})$
+and normalised capacity as
+\begin{equation}
+  Q_{\mathrm{norm}}(n) = \frac{Q\!\left(N_{\mathrm{act}} + n\right)}{Q_{\mathrm{ref}}},
+  \qquad n = 1, 2, \ldots
+  \label{eq:qnorm}
+\end{equation}
+Cycle-life labels were then computed as the number of cycles $n$ elapsed from
+$N_{\mathrm{act}}$ until $Q_{\mathrm{norm}}(n)$ first dropped below 0.80 and
+remained below that threshold, yielding values in the range 50--1662 for
+Zn-ion cells and 88--2237 for Li-ion cells.  All models were trained on
+log-transformed cycle-life values to stabilise variance across the wide
+dynamic range.
+
+\subsection{Functional principal component analysis}
+\label{sec:fpca}
+
+Differential capacity ($\mathrm{d}Q/\mathrm{d}V$) curves encode
+electrochemical phase-transition signatures whose shifts with aging have
+demonstrated predictive value for Li-ion degradation \cite{severson2019}.
+We adopted these curves as the primary spectral feature carrier.
+
+For Severson LFP cells, $Q(V)$ data from cycles 2--100 were linearly
+interpolated onto a uniform 1000-point voltage grid spanning 2.0--3.5\,V,
+and $\mathrm{d}Q/\mathrm{d}V$ was computed by central finite differences.
+For Zn-ion cells, raw ($V$, $Q$) point arrays were interpolated onto a
+500-point grid spanning 0.8--1.8\,V prior to differentiation, reflecting
+the narrower electrochemical window of the Zn/MnO\textsubscript{2} couple.
+In both cases, Savitzky--Golay smoothing (window length 11, polynomial
+order 3) was applied to suppress numerical noise before differentiation.
+
+FPCA was performed using the \texttt{scikit-fda} library
+\cite{ramos2024} on an \texttt{FDataGrid} constructed from \emph{Li-ion
+curves only}.  The $K = 3$ retained functional principal components explained
+96.1\% of variance in the Li-ion corpus (PC1: 83.0\%, PC2: 10.5\%,
+PC3: 2.6\%), and the component loadings were held fixed thereafter.
+
+To project Zn-ion curves onto the Li-ion basis, the Zn-ion voltage grid was
+first mapped to the normalised domain $[0, 1]$ by a linear rescaling
+$v \mapsto (v - v_{\min})/(v_{\max} - v_{\min})$; the Li-ion grid was
+rescaled identically.  This common normalised domain permitted direct
+evaluation of the Li-ion eigenfunctions at Zn-ion grid points via cubic
+spline interpolation, after which the standard
+\texttt{FPCA.transform()} call was applied to obtain three projection
+scores.  This procedure explicitly assumes that, under a common normalised
+voltage axis, the degradation modes of the two chemistries share
+\emph{sufficient} geometric overlap for the Li-ion loadings to capture
+informative variance in the Zn-ion curves---an assumption validated empirically
+by the positive transfer results in Section~4.
+
+The final feature vector for each cell was
+\begin{equation}
+  \mathbf{x} = \bigl[\,\phi_1,\;\phi_2,\;\phi_3,\;\Delta Q_{\mathrm{var}}\bigr]^{\!\top} \in \mathbb{R}^4,
+  \label{eq:features}
+\end{equation}
+where $\phi_k$ are the FPCA projection scores and
+$\Delta Q_{\mathrm{var}} = \mathrm{Var}\!\left(Q_{\mathrm{norm}}(2) - Q_{\mathrm{norm}}(100)\right)$
+is the variance of the capacity difference curve, a scalar feature previously
+shown to be predictive of long-term degradation \cite{severson2019}.
+Coulombic efficiency (CE) was \emph{deliberately excluded} from the feature
+set.  In Li-ion cells, CE primarily reflects solid-electrolyte interphase
+(SEI) growth, a continuous parasitic film formation mechanism; in
+Zn-ion cells, CE instead reflects the competing effects of hydrogen evolution
+reaction (HER) and dead-zinc accumulation, which are mechanistically distinct
+and exhibit different cycle-number dependence.  An ablation study
+(Section~4.4) confirmed that including CE produced negative transfer,
+increasing RMSE on Zn-ion test cells relative to a Zn-ion-only baseline.
+
+\subsection{Multi-task Gaussian process with intrinsic coregionalization}
+\label{sec:mtgp}
+
+Let $\mathcal{D}_s = \{(\mathbf{x}_i^{(s)}, y_i^{(s)})\}_{i=1}^{N_s}$ and
+$\mathcal{D}_t = \{(\mathbf{x}_j^{(t)}, y_j^{(t)})\}_{j=1}^{N_t}$ denote the
+source (Li-ion) and target (Zn-ion) training sets, where $y$ denotes
+log-cycle-life.  We augmented each input with a discrete task index
+$t \in \{0, 1\}$ and placed a Gaussian process (GP) prior jointly over both
+tasks:
+\begin{equation}
+  f(\mathbf{x}, t) \sim \mathcal{GP}\!\left(0,\; k\!\left((\mathbf{x},t),\,(\mathbf{x}',t')\right)\right).
+  \label{eq:gp_prior}
+\end{equation}
+
+The covariance kernel was structured under the \emph{intrinsic
+coregionalization model} (ICM):
+\begin{equation}
+  k\!\left((\mathbf{x},t),\,(\mathbf{x}',t')\right)
+  = B_{t,t'} \cdot k_{\mathbf{x}}(\mathbf{x},\mathbf{x}'),
+  \label{eq:icm}
+\end{equation}
+where $\mathbf{B} \in \mathbb{R}^{2 \times 2}$ is a learned positive
+semi-definite task covariance matrix and $k_{\mathbf{x}}$ is a shared
+input-space kernel.  The ICM factorisation assumes that cross-task
+correlations are \emph{stationary} in input space---i.e., the relative
+similarity between two observations from different tasks depends only on
+their feature-space distance, not on their absolute location---which is
+appropriate here given the common normalised feature representation of
+Eq.~\eqref{eq:features}.
+
+The input-space kernel was chosen as Mat\'{e}rn-$\tfrac{5}{2}$:
+\begin{equation}
+  k_{\mathbf{x}}(\mathbf{x},\mathbf{x}') =
+  \left(1 + \frac{\sqrt{5}\,r}{\ell} + \frac{5r^2}{3\ell^2}\right)
+  \exp\!\left(-\frac{\sqrt{5}\,r}{\ell}\right),
+  \label{eq:matern52}
+\end{equation}
+where $r = \|\mathbf{x} - \mathbf{x}'\|_2$ and $\ell > 0$ is the
+learnable length-scale.  The Mat\'{e}rn-$\tfrac{5}{2}$ kernel was preferred
+over the squared-exponential (RBF) kernel because it encodes a weaker
+smoothness assumption (twice differentiable), which is physically more
+appropriate for battery degradation trajectories that can exhibit
+sharp transitions near EOL.
+
+The full set of trainable hyperparameters was
+$\boldsymbol{\theta} = \{\mathbf{B}, \ell, \sigma^2_{\mathrm{noise}}\}$,
+where $\sigma^2_{\mathrm{noise}}$ is an isotropic observation noise variance
+shared across tasks.  The matrix $\mathbf{B}$ was parameterised as
+$\mathbf{B} = \mathbf{L}\mathbf{L}^{\top}$ with $\mathbf{L}$ lower triangular,
+ensuring positive semi-definiteness throughout optimisation.
+Hyperparameters were jointly optimised by maximising the log marginal likelihood
+\begin{equation}
+  \log p(\mathbf{y} \mid \mathbf{X}, \boldsymbol{\theta}) =
+  -\tfrac{1}{2}\mathbf{y}^{\top}\mathbf{K}_{\boldsymbol{\theta}}^{-1}\mathbf{y}
+  -\tfrac{1}{2}\log|\mathbf{K}_{\boldsymbol{\theta}}|
+  -\tfrac{N}{2}\log 2\pi,
+  \label{eq:mll}
+\end{equation}
+where $\mathbf{K}_{\boldsymbol{\theta}}$ is the $(N_s + N_t) \times (N_s + N_t)$
+joint covariance matrix evaluated at all training inputs and task indices,
+and $N = N_s + N_t$.  Optimisation used the Adam algorithm with a learning
+rate of $10^{-2}$ for 500 steps; we verified convergence by confirming that
+the change in marginal likelihood across the final 50 steps was less than
+$10^{-4}$ in all Monte Carlo trials.  The implementation relied on
+\texttt{GPyTorch} \cite{gardner2018}, using \texttt{IndexKernel} for
+$\mathbf{B}$ combined with \texttt{MaternKernel} via a \texttt{ProductKernel}.
+
+At prediction time, the posterior mean and variance for a new Zn-ion cell
+with features $\mathbf{x}_*$ (task index $t=1$) are given by the standard GP
+posterior:
+\begin{align}
+  \mu_* &= \mathbf{k}_*^{\top}\mathbf{K}_{\boldsymbol{\theta}}^{-1}\mathbf{y},
+  \label{eq:posterior_mean} \\
+  \sigma^2_* &= k(\mathbf{x}_*,\mathbf{x}_*) - \mathbf{k}_*^{\top}\mathbf{K}_{\boldsymbol{\theta}}^{-1}\mathbf{k}_*,
+  \label{eq:posterior_var}
+\end{align}
+where $\mathbf{k}_* = [k((\mathbf{x}_*,1),(\mathbf{x}_i,t_i))]_i$ is the
+vector of covariances between the test point and all training points.  The
+posterior standard deviation $\sigma_*$ thus provides calibrated predictive
+uncertainty that reflects both data scarcity (small $N_t$) and structural
+uncertainty in the inter-task relationship.
+
+We chose a GP formulation over neural transfer approaches (e.g., fine-tuning
+a multi-layer perceptron trained on Li-ion data) for three reasons specific
+to the low-data regime.  First, at $N_t \in \{2,5,10\}$ labeled Zn-ion
+cells, GPs provide well-calibrated uncertainty estimates without requiring
+held-out validation data for early stopping.  Second, the ``freeze early
+layers'' paradigm of neural transfer learning is not applicable to
+shallow tabular models where all parameters are jointly tuned; GP
+marginal likelihood optimisation achieves analogous regularisation
+automatically by integrating over function-space complexity.  Third, the
+ICM's off-diagonal element $B_{01}$ is a directly interpretable quantity:
+its sign and magnitude encode whether source knowledge transfers
+constructively or destructively to the target, and can be inspected
+to diagnose negative transfer.
+
+\subsection{Experimental protocol}
+\label{sec:protocol}
+
+To characterise how prediction accuracy degrades as labeled Zn-ion training
+data become scarcer, we conducted a systematic sweep over target set sizes
+$N_t \in \{2, 5, 10, 20, 40\}$.  For each value of $N_t$, we drew 200
+independent Monte Carlo random subsamples (without replacement) from the
+pool of non-held-out Zn-ion cells.  The sampled $N_t$ cells formed the
+target training set; the remaining non-held-out cells served as an
+in-distribution validation set for monitoring generalisation.  All 95 Li-ion
+source cells were included in every trial.  Performance was evaluated on the
+fixed 10-cell Zn-ion test set, which was never used during hyperparameter
+optimisation or model selection in any trial.
+
+The primary metric was root mean squared error (RMSE) in cycle units,
+obtained by computing residuals after inverting the log transform applied to
+cycle-life labels.  For each $N_t$, we report the median RMSE and
+interquartile range (IQR) across the 200 Monte Carlo trials to provide
+a robust picture of performance variability under different random draws of
+the scarce target training data.
+
+Statistical significance of performance differences between the MT-GP and each
+baseline (Section~\ref{sec:baselines}) was assessed using the Wilcoxon
+signed-rank test \cite{wilcoxon1945}, pairing trials by random seed so that
+both models saw identical training sets.  $p$-values were corrected for
+multiple comparisons across $N_t$ values and baseline models using the
+Bonferroni method; results are reported as significant at the corrected
+$\alpha = 0.05$ level.
+
+\subsection{Baselines}
+\label{sec:baselines}
+
+Three baselines were evaluated against the MT-GP.
+
+\textbf{GP-Direct.} A single-task GP trained solely on the $N_t$ available
+Zn-ion cells, using the same Mat\'{e}rn-$\tfrac{5}{2}$ kernel and identical
+hyperparameter optimisation procedure.  This baseline quantifies the
+improvement attributable to the Li-ion source data specifically, holding
+the model class and feature representation constant.
+
+\textbf{Ridge regression.} An $\ell_2$-regularised linear regressor fit on
+the Zn-ion training cells, with regularisation strength $\alpha$ selected
+by leave-one-out cross-validation over the grid
+$\alpha \in \{10^{-4}, 10^{-3}, \ldots, 10^{4}\}$.  Ridge regression serves
+as a linear lower-bound representative of classical, non-transfer approaches
+and contextualises whether GP non-linearity provides value at very small
+$N_t$.
+
+\textbf{Shuffled-label control.} The MT-GP trained with Li-ion cycle-life
+labels randomly permuted prior to each trial, while all other aspects of
+the pipeline (features, kernel, optimisation) remain unchanged.  This
+control tests the specific hypothesis that MT-GP performance improvements
+arise from \emph{informative} source supervision, rather than from the
+mere regularisation effect of additional data points with arbitrary labels.
+A failure of MT-GP to outperform the shuffled control would indicate that
+the Li-ion source knowledge contributes nothing beyond increasing the
+effective training set size; a clear advantage over the shuffled control is
+necessary (though not sufficient) evidence of genuine cross-chemistry
+knowledge transfer.

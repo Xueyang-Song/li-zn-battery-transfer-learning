@@ -1,0 +1,45 @@
+# Data (too large for git, download separately — see README for URLs)
+data/
+
+# Large binary/parquet files (reproducible from pipeline)
+features/*.parquet
+features/*.npy
+processed/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Results (reproducible from pipeline, except canonical JSON)
+results/*.parquet
+
+# Validation plots (auto-generated)
+processed/pelt_validation/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# LaTeX build artifacts
+output/paper/*.aux
+output/paper/*.log
+output/paper/*.out
+output/paper/*.bbl
+output/paper/*.blg
+output/paper/*.synctex.gz
+output/paper/*.pdf

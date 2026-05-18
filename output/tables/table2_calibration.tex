@@ -1,0 +1,23 @@
+\begin{table}[htbp]
+\centering
+\caption{Predictive uncertainty calibration (100 MC trials).
+\textit{Coverage}: fraction of true values within predicted 90\% credible interval
+(ideal = 90\%). \textit{NLL}: Gaussian negative log-likelihood in log-cycle space
+(lower is better). \textbf{Bold}: better value per metric per $N$.}
+\label{tab:calibration}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrrrr}
+\toprule
+\textbf{Metric} & \textbf{Model} & $N=2$ & $N=5$ & $N=10$ & $N=20$ & $N=40$ \\
+\midrule
+RMSE & Selective MT-GP & 49.1 & \textbf{45.0} & 45.1 & 43.3 & 40.8 \\
+ & GP-Direct & \textbf{48.2} & 45.1 & \textbf{44.5} & \textbf{43.0} & \textbf{39.9} \\
+\midrule
+Coverage (\%) & Selective MT-GP & \textbf{81.0} & \textbf{83.0} & \textbf{85.0} & \textbf{86.5} & \textbf{88.0} \\
+ & GP-Direct & 50.5 & 69.0 & 83.0 & 84.0 & 87.5 \\
+\midrule
+NLL & Selective MT-GP & \textbf{1.072} & \textbf{1.033} & \textbf{0.948} & \textbf{0.742} & 0.650 \\
+ & GP-Direct & 3.444 & 1.862 & 1.019 & 0.874 & \textbf{0.641} \\
+\bottomrule
+\end{tabular}
+\end{table}
