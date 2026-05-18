@@ -60,7 +60,7 @@ zinc is earth-abundant and inexpensive, and the absence of organic solvents
 eliminates the fire and toxicity hazards inherent in conventional LIBs
 \cite{tan2024}. Despite rapid advances in ZIB electrode materials and
 electrolyte engineering --- including machine learning-guided interfacial
-coating optimization \cite{song2026ald} --- practical deployment at grid scale
+coating optimization \cite{song2026ald} and hybrid electrolyte design for extended voltage windows \cite{song2021awis} --- practical deployment at grid scale
 still requires reliable lifetime estimation --- the ability to predict remaining useful life
 (RUL) or total cycle life from early-cycle measurements so that battery
 management systems can schedule maintenance, warranty pricing, and second-life
@@ -69,7 +69,7 @@ allocation.
 A fundamental obstacle to accurate lifetime modeling for ZIBs is data
 scarcity. While the lithium-ion community has accumulated thousands of
 well-characterized cell trajectories across diverse chemistries, formats, and
-cycling protocols \cite{severson2019, paulson2022}, ZIB lifecycle datasets
+cycling protocols \cite{severson2019, paulson2022, zhu2020tincone}, ZIB lifecycle datasets
 remain sparse: the largest publicly available collection contains on the order
 of hundreds of cells, and most laboratory studies report far fewer. Machine
 learning models trained on such limited data suffer from high variance and
@@ -142,8 +142,9 @@ standard benchmark for early-cycle battery lifetime prediction. Each cell was
 cycled to 80\% capacity retention, providing ground-truth cycle life spanning
 roughly 150--2300 cycles.
 
-We supplement this with the CALCE dataset, which contributes 8 additional
-LFP/NMC cells cycled under constant-current protocols. After applying a joint
+We supplement this with the CALCE dataset (CS2 and CX2 series), which
+contributes 8 additional LCO (LiCoO$_2$/graphite) cells cycled under
+constant-current protocols \cite{he2011calce}. After applying a joint
 quality filter ($\text{exp\_b} < 4.9$ AND cycle life $> 10$), we retain a
 total of 132 Li-ion cells. The filter on $\text{exp\_b}$ removes cells with
 anomalously rapid early degradation that is inconsistent with the exponential
@@ -217,8 +218,10 @@ LIBs and ZIBs, we apply a log-transform:
 \end{equation}
 The small constant $10^{-6}$ prevents numerical issues for cells with near-zero
 variance. After log-transformation, a \texttt{StandardScaler} is fit jointly
-over the combined Li-ion and Zn-ion feature matrix so that both tasks share a
-common scale in the model's input space. Figure~\ref{fig:features} shows the
+over the source dataset and the $N$ available Zn-ion \emph{training} cells only;
+the fitted scaler is then applied to the held-out test cells without refitting,
+ensuring no information from the test set influences the feature space calibration.
+Both tasks share a common scale in the model's input space after this step. Figure~\ref{fig:features} shows the
 resulting feature distributions, confirming that the log-transform substantially
 improves overlap between the LIB and ZIB marginal distributions.
 
@@ -387,7 +390,10 @@ training size $N \in \{2, 5, 10, 20, 40\}$. In each trial, $N$ Zn-ion cells
 are sampled uniformly at random from the 90 non-test training pool. All Li-ion
 cells (132) are included in every trial. The test set consists of 10 Zn-ion
 cells held out permanently (identities fixed in \texttt{pipeline\_metadata.json}
-before any experiments were run, preventing test-set leakage).
+before any experiments were run, preventing test-set leakage). The 10 held-out
+cells were selected to span the full cycle-life distribution of the ZN-coin
+subset (ranging from low to high longevity), ensuring the fixed test set is
+representative of the overall Zn-ion population.
 
 We report two primary metrics:
 
@@ -775,6 +781,28 @@ Song, X.
 ``Machine Learning-Driven Optimization of ALD Coatings for Enhanced Interfacial Stability in Advanced Battery Materials.''
 \textit{ChemRxiv} (2026).
 \url{https://doi.org/10.26434/chemrxiv.15002062/v1}
+
+\bibitem{song2021awis}
+Song, X., He, H., Aboonasr Shiraz, M.H., Zhu, H., Khosrozadeh, A., Liu, J.
+``Enhanced reversibility and electrochemical window of Zn-ion batteries
+with an acetonitrile/water-in-salt electrolyte.''
+\textit{Chemical Communications} 57, 1246--1249 (2021).
+\url{https://doi.org/10.1039/d0cc06076c}
+
+\bibitem{zhu2020tincone}
+Zhu, H., Aboonasr Shiraz, M.H., Yao, L., Adair, K., Wang, Z., Tong, H.,
+Song, X., Sham, T.-K., Arjmand, M., Song, X., Liu, J.
+``Molecular-layer-deposited tincone: a new hybrid organic--inorganic anode
+material for three-dimensional microbatteries.''
+\textit{Chemical Communications} 56, 13221--13224 (2020).
+\url{https://doi.org/10.1039/d0cc03869e}
+
+\bibitem{he2011calce}
+He, W., Williard, N., Osterman, M., Pecht, M.
+``Prognostics of lithium-ion batteries based on Dempster-Shafer theory
+and the Bayesian Monte Carlo method.''
+\textit{Journal of Power Sources} 196, 10314--10321 (2011).
+(CALCE Battery Research Group dataset, University of Maryland.)
 
 \end{thebibliography}
 
