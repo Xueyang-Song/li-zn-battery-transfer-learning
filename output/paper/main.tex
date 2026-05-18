@@ -127,6 +127,27 @@ versus 50.5\% for GP-Direct's nominally 90\% credible intervals. This
 calibration advantage persists until approximately $N = 40$, where both models
 converge to well-calibrated predictions with sufficient data.
 
+Figure~\ref{fig:overview} summarizes the full pipeline from raw cycling data
+to calibrated predictions.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/fig1_method_overview.pdf}
+  \caption{Overview of the Selective MT-GP pipeline.
+  Li-ion source cells (blue) and Zn-ion target cells (orange) each undergo
+  chemistry-specific feature extraction. The exponential decay rate
+  $\text{exp\_b}$ is identified as a transferable feature (shared kernel,
+  green), while the differential capacity variance $\Delta\mathrm{var}(dQ/dV)$
+  is treated as a Zn-ion-private feature (red) because its absolute scale and
+  mechanistic origin differ fundamentally across chemistries. The two kernel
+  components are combined additively ($k_{\mathrm{sel}} = k_{\mathrm{shared}}
+  + k_{\mathrm{private}}$) to form the Selective MT-GP, which outputs a
+  full predictive posterior $\mu^*(N_\mathrm{cyc}) \pm \sigma^*(N_\mathrm{cyc})$
+  in log-cycle space. Zn-ion cells additionally require PELT-based activation
+  detection before feature extraction.}
+  \label{fig:overview}
+\end{figure}
+
 % ============================================================
 \section{Data}
 \label{sec:data}
