@@ -188,12 +188,27 @@ Tests cover: PELT activation detection, feature extraction (exp_b, dQ/dV), GP mo
 
 ## Citation
 
+If you use this work, please cite:
+
 ```bibtex
 @article{song2026transfer,
   title={Transfer Learning from Lithium-Ion to Zinc-Ion Batteries: Cross-Chemistry Capacity Prediction with Limited Target Data},
   author={Song, Xueyang},
   year={2026},
   note={Preprint}
+}
+```
+
+Related work by the same author:
+
+```bibtex
+@article{song2026ald,
+  title={Machine Learning-Driven Optimization of ALD Coatings for Enhanced Interfacial Stability in Advanced Battery Materials},
+  author={Song, Xueyang},
+  year={2026},
+  journal={ChemRxiv},
+  doi={10.26434/chemrxiv.15002062/v1},
+  url={https://doi.org/10.26434/chemrxiv.15002062/v1}
 }
 ```
 
