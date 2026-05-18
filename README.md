@@ -189,10 +189,10 @@ Tests cover: PELT activation detection, feature extraction (exp_b, dQ/dV), GP mo
 ## Citation
 
 ```bibtex
-@article{song2024transfer,
+@article{song2026transfer,
   title={Transfer Learning from Lithium-Ion to Zinc-Ion Batteries: Cross-Chemistry Capacity Prediction with Limited Target Data},
   author={Song, Xueyang},
-  year={2024},
+  year={2026},
   note={Preprint}
 }
 ```
