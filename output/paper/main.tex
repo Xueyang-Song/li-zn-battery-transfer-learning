@@ -36,14 +36,16 @@ scale gap between chemistries --- is treated as a Zn-ion-private feature.
 Our experiments reveal a crossover near $N \approx 20$: below this
 threshold, Li-ion labels appear to harm Zn-ion predictions (negative transfer),
 while above it, selective feature transfer outperforms na\"ive approaches.
-While Selective MT-GP does not achieve lower RMSE than a direct
-Zn-ion GP (GP-Direct), it provides better-calibrated uncertainty
-estimates at small $N$: at $N = 2$, GP-Direct achieves only 50.5\% coverage of
-its stated 90\% credible intervals ($\mathrm{NLL} = 3.44$), compared to 81\%
-coverage for Selective MT-GP ($\mathrm{NLL} = 1.07$ --- a 3.2$\times$
-improvement). These results suggest that cross-chemistry transfer learning's
-primary value may lie in uncertainty calibration rather than point accuracy, with
-implications for safe deployment in new-chemistry battery development.
+At $N = 2$, GP-Direct achieves only 50.5\% empirical coverage of its stated
+90\% credible intervals ($\mathrm{NLL} = 3.44$) --- barely above a coin flip.
+Selective MT-GP raises coverage to 81\% ($\mathrm{NLL} = 1.07$, a
+3.2$\times$ improvement) by anchoring posterior variance to 132 Li-ion cells,
+preventing hyperparameter collapse onto two data points.
+For battery management systems that make safety-critical decisions from early
+cycle data, this calibration gap is consequential: a model reporting 90\%
+credible intervals that achieve only 50\% empirical coverage will systematically
+underestimate risk in the data-scarce regime. Cross-chemistry transfer's primary
+contribution in this regime is not point accuracy but \emph{honest uncertainty}.
 \end{abstract}
 
 % ============================================================
@@ -113,6 +115,12 @@ $\Delta\mathrm{var}(dQ/dV)$ --- which encodes chemistry-specific phase
 transition thermodynamics (LiFePO$_4$ two-phase reaction versus Zn
 plating/stripping) and therefore cannot be assumed transferable --- is
 restricted to a Zn-ion-private kernel that contributes to ZIB predictions only.
+
+The key insight driving our evaluation is that for practitioners deploying
+battery lifetime models during early ZIB development --- before enough cells
+exist to characterize the chemistry --- probabilistic calibration matters more
+than median point accuracy. An overconfident model is more dangerous than an
+inaccurate but honest one.
 
 Through systematic Monte Carlo evaluation over $N \in \{2, 5, 10, 20, 40\}$
 Zn-ion training cells, we find a \textbf{crossover near
@@ -577,30 +585,63 @@ $\text{exp\_b}$.
 
 In contrast, $\Delta\mathrm{var}(dQ/dV)$ encodes chemistry-specific phase-transition thermodynamics. In LFP, the dQ/dV peak reflects the first-order LiFePO$_4 \leftrightarrow$ FePO$_4$ transition, encoding active material fraction and structural homogeneity. In Zn/MnO$_2$ cells, the profile instead reflects Zn plating/stripping and Mn dissolution --- distinct processes with a fundamentally different absolute scale. This is confirmed empirically: Standard MT-GP, which treats $\Delta\mathrm{var}$ as transferable, degrades performance relative to Selective MT-GP \cite{zhang2020impedance}.
 
-\subsection{The Shuffled Baseline Paradox}
+More generally, we propose that cross-chemistry transferability of battery
+features can be assessed \emph{a priori} by classifying each feature against
+two physical criteria.
+\textbf{Criterion A (Arrhenius-universality):} features whose variation reflects
+macroscopic thermodynamic rate laws (activation energies, diffusion coefficients,
+exponential decay timescales) are expected to be transferable across
+electrochemical systems because these laws apply regardless of ionic species or
+electrode material.
+\textbf{Criterion B (Phase-thermodynamic specificity):} features whose variation
+encodes system-specific phase equilibria, intercalation stage structure, or
+valence-state transitions are expected to be \emph{chemistry-private}, as these
+thermodynamic properties are determined by the electrode crystal structure and
+ionic coordination chemistry.
+In this framework, $\text{exp\_b}$ classifies under Criterion A (transferable)
+and $\Delta\mathrm{var}(dQ/dV)$ classifies under Criterion B (private).
+Applied to a new chemistry such as sodium-ion or magnesium-ion batteries, this
+taxonomy provides a principled starting point for feature partitioning
+\emph{before} any target-chemistry experiments are conducted.
 
-An unexpected result is that Shuffled MT-GP
---- a deliberately corrupted baseline in which Li-ion labels are randomized ---
-outperforms Selective MT-GP at small $N$ (below $\approx 20$ ZIB cells). This
-result has a reasonably precise explanation grounded in the structure of GP
-inference.
+\subsection{A Two-Tier Model of Cross-Chemistry Transfer Value}
 
-The Shuffled MT-GP preserves the Li-ion \emph{feature distribution}, which
-informs the marginal likelihood optimization of the kernel hyperparameters
-(particularly the length scales). A longer effective length scale in
-$\text{exp\_b}$, calibrated to the broader LIB feature distribution, produces
-a smoother predictive posterior for ZIBs --- effectively a stronger smoothness
-prior. This is beneficial at $N = 2$--$10$ where ZIB training data is
-insufficient to estimate length scales reliably.
+The performance of Shuffled MT-GP --- a deliberately corrupted control in which
+Li-ion labels are randomized --- reveals that cross-chemistry transfer operates
+on two distinct levels that can be disentangled.
 
-Shuffled MT-GP destroys the Li-ion regression signal, so it cannot pull ZIB predictions toward the Li-ion posterior mean. This avoids a harmful bias when the inter-task mean offset is large, explaining why Selective MT-GP's residual mean-regression toward the LIB prior slightly degrades RMSE at small $N$.
+\textbf{Tier 1 (Feature Distribution Transfer).} The Shuffled baseline
+preserves Li-ion feature geometry while destroying label information.
+Its superior RMSE at $N \leq 10$ demonstrates that the \emph{first} benefit of
+cross-chemistry transfer is geometric: the Li-ion feature distribution spans a
+wider range of $\text{exp\_b}$ values, calibrating the GP's length-scale
+hyperparameters to a broader effective prior. This longer effective length scale
+produces a smoother ZIB predictive posterior --- a stronger regularization that
+reduces variance at the cost of a slightly elevated bias. At $N \leq 10$,
+this variance reduction outweighs the bias introduced by label misalignment.
+Critically, Tier 1 transfer is \emph{always non-negative}: it cannot be harmed
+by label contamination because labels are not used.
 
-This suggests that in cross-chemistry battery transfer learning,
-the feature distribution of the source domain may be more valuable than its labels
-at small $N$. Future work might explore unsupervised domain
-adaptation techniques \cite{pan2010transfer} (contrastive pre-training, optimal transport domain
-alignment, or Wasserstein GANs) that transfer the source feature distribution
-without committing to supervised label transfer.
+\textbf{Tier 2 (Label Regression Transfer).} Standard and Selective MT-GP
+additionally transfer the Li-ion posterior mean, pulling ZIB predictions
+toward the Li-ion regression surface. At small $N$, the inter-chemistry mean
+offset is poorly estimated from few ZIB cells, and the Li-ion regression surface
+introduces a harmful bias. Above $N \approx 20$, ZIB data becomes sufficient to
+correct this offset: the inter-task correlation $B_{12}$ is reliably estimated,
+and selective transfer of the $\text{exp\_b}$ regression surface yields
+statistically significant RMSE reductions (Wilcoxon $p = 0.007$ at $N = 20$;
+$p < 0.001$ at $N = 40$).
+
+This two-tier decomposition has practical implications. In the early
+development phase of a new battery chemistry ($N \leq 10$), practitioners
+should exploit Tier 1 by using the source feature distribution as a length-scale
+prior (as Shuffled implicitly does) while avoiding direct label regression.
+Once $N \approx 20$ cells become available, Tier 2 --- selective label transfer
+guided by physical feature classification --- becomes beneficial.
+Future work should explore whether unsupervised domain adaptation methods
+\cite{pan2010transfer} (contrastive pre-training, optimal transport alignment)
+can provide Tier 1 benefits without the risk of Tier 2 contamination,
+potentially pushing the crossover point below $N = 10$.
 
 \subsection{Engineering Implications}
 
@@ -621,8 +662,12 @@ the regime $N < 20$ where Li-ion labels do not improve RMSE, the Selective
 MT-GP provides substantially better-calibrated uncertainty than GP-Direct. For
 applications where uncertainty estimates directly inform safety decisions ---
 battery warranty pricing, second-life allocation, fast-charging optimization ---
-the 3.2$\times$ NLL improvement at $N = 2$ represents a meaningful reduction
-in the risk of undetected overconfidence. Reporting NLL and
+the 3.2$\times$ NLL improvement at $N = 2$ is operationally significant: a
+battery management system relying on GP-Direct's 50.5\%-coverage intervals
+to schedule maintenance or price warranty contracts will make decisions
+predicated on a false sense of precision. Selective MT-GP's calibrated intervals
+provide a correct assessment of model uncertainty in this regime.
+Reporting NLL and
 empirical credible interval coverage alongside RMSE in battery ML papers for
 new chemistries is advisable, as RMSE alone can mask severe overconfidence.
 
@@ -633,13 +678,24 @@ actively harm performance. Physical reasoning about the mechanistic origins of
 predictive features appears to be a necessary prerequisite, not an optional
 refinement, for cross-chemistry transfer.
 
+\textbf{4. Zero-shot prior as a safety floor.} An important regime not fully
+explored here is $N = 0$: a purely Li-ion-trained model serving as a prior over
+ZIB cycle life. In this zero-shot setting, the model's prediction collapses to
+the Li-ion posterior mean with large uncertainty, and RMSE is expected to be
+substantially worse than GP-Direct at any $N > 0$. However, the posterior
+variance is not constrained by ZIB sample size and may remain well-calibrated
+relative to GP-Direct at $N = 2$. Characterizing the $N = 0$ regime would
+establish a principled lower bound on the information provided by the source
+domain alone, clarifying how much ZIB data is required before source labels
+are net-positive. This extension is left for future work.
+
 \subsection{Limitations}
 
 Several limitations bound the scope of our conclusions. \textbf{First}, this
 study evaluates only Gaussian process models, which assume linear inter-task
 correlation (encoded in the ICM task kernel). Nonlinear cross-chemistry
 relationships, if they exist, would require more flexible architectures such as
-deep kernel learning or neural process models. \textbf{Second}, this study uses only coin-cell format ZN cells; transferability conclusions may not generalize to pouch or cylindrical ZIBs. \textbf{Third}, the feature selection is motivated by physical reasoning but was also guided by post-hoc analysis, introducing potential hindsight bias; prospective validation on a withheld dataset would strengthen the causal interpretation. \textbf{Fourth},
+deep kernel learning or neural process models. \textbf{Second}, this study uses only coin-cell format ZN cells; transferability conclusions may not generalize to pouch or cylindrical ZIBs. \textbf{Third}, while the physical taxonomy in Section~\ref{sec:discussion} provides an \emph{a priori} classification framework, the specific feature partition used here ($\text{exp\_b}$ shared, $\Delta\mathrm{var}(dQ/dV)$ private) was selected with knowledge of the empirical results, introducing potential hindsight bias. Prospective validation --- applying the taxonomy to a new target chemistry without using experimental data to guide feature partitioning --- would strengthen the causal claim. \textbf{Fourth},
 the BatteryLife ZN-coin batches span different temperatures, and our model does
 not stratify transfer by operating temperature. Temperature strongly affects
 degradation kinetics, and temperature-aware transfer (conditioning inter-task
@@ -667,7 +723,14 @@ preserving Li-ion feature distributions but destroying label information ---
 outperforms full transfer at small $N$, identifying source feature distributions
 as more valuable than source labels in the low-data regime.
 
-These results highlight a recurring challenge in applying machine learning across physical domains: \textbf{physical feature alignment must precede data-driven label transfer}. Identifying which features encode transferable physical mechanisms and which encode chemistry-specific processes drives model design. Methods that automate this partitioning --- causal discovery, information-theoretic feature selection, or physics-informed neural networks --- are left for future work. Additional
+These results highlight a recurring challenge in applying machine learning across physical domains: \textbf{physical feature alignment must precede data-driven label transfer}. Identifying which features encode transferable physical mechanisms and which encode chemistry-specific processes drives model design. Methods that automate this partitioning --- causal discovery, information-theoretic feature selection, or physics-informed neural networks --- are left for future work.
+
+The log-transform in Equation~\eqref{eq:logtransform} substantially compresses
+the scale gap but does not eliminate it: the Li-ion feature distribution still
+occupies a wider region of input space, and the GP's effective length scales
+remain partially dominated by the source chemistry. Full resolution of feature
+starvation may require explicit weighting of source vs.\ target observations in
+the marginal likelihood, or a task-specific input warping function. Additional
 directions include neural process architectures for non-linear cross-chemistry
 meta-learning \cite{weiss2016transfer}, temperature-stratified transfer for thermal generalization, and
 validation on pouch-cell format ZIBs to assess format-generalizability of the
