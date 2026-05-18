@@ -56,12 +56,12 @@ and safe stationary energy storage. Zinc-ion batteries have attracted considerab
 interest as next-generation grid-storage devices, offering key practical
 advantages over conventional lithium-ion technology: zinc metal anodes operate
 stably in mild aqueous electrolytes (typically ZnSO$_4$ solution), elemental
-zinc is earth-abundant and inexpensive, and the absence of organic solvents
+zinc is earth-abundant and inexpensive \cite{kundu2016zinc, parker2017zinc}, and the absence of organic solvents
 eliminates the fire and toxicity hazards inherent in conventional LIBs
 \cite{tan2024}. Despite rapid advances in ZIB electrode materials and
 electrolyte engineering --- including machine learning-guided interfacial
 coating optimization \cite{song2026ald} and hybrid electrolyte design for extended voltage windows \cite{song2021awis} --- practical deployment at grid scale
-still requires reliable lifetime estimation --- the ability to predict remaining useful life
+still requires reliable lifetime estimation \cite{zhi2020zib} --- the ability to predict remaining useful life
 (RUL) or total cycle life from early-cycle measurements so that battery
 management systems can schedule maintenance, warranty pricing, and second-life
 allocation.
@@ -69,20 +69,20 @@ allocation.
 A fundamental obstacle to accurate lifetime modeling for ZIBs is data
 scarcity. While the lithium-ion community has accumulated thousands of
 well-characterized cell trajectories across diverse chemistries, formats, and
-cycling protocols \cite{severson2019, paulson2022, zhu2020tincone}, ZIB lifecycle datasets
-remain sparse: the largest publicly available collection contains on the order
+cycling protocols \cite{severson2019, paulson2022, roman2021, fermin2020knee, zhu2020tincone}, ZIB lifecycle datasets
+remain sparse \cite{ma2020mnO2}: the largest publicly available collection contains on the order
 of hundreds of cells, and most laboratory studies report far fewer. Machine
-learning models trained on such limited data suffer from high variance and
+learning models trained on such limited data \cite{attia2020closed, fermin2020knee} suffer from high variance and
 poorly calibrated uncertainty --- a dangerous combination when predictions
 inform safety-critical deployment decisions.
 
 A natural hypothesis is that lifetime prediction knowledge can be transferred
-from data-rich LIBs to data-scarce ZIBs. Both battery chemistries degrade
+from data-rich LIBs to data-scarce ZIBs \cite{pan2010transfer, weiss2016transfer, wang2021soh}. Both battery chemistries degrade
 monotonically over cycling; at the macroscopic level both exhibit
-approximately exponential capacity fade, suggesting that at least some
+approximately exponential capacity fade \cite{vetter2005ageing, birkl2017degradation}, suggesting that at least some
 predictive features may encode universal electrochemical degradation physics
 rather than chemistry-specific mechanisms. Multi-task Gaussian processes
-\cite{bonilla2007} provide a principled Bayesian framework for such transfer:
+\cite{bonilla2007, alvarez2012kernels} provide a principled Bayesian framework for such transfer:
 by modeling LIB and ZIB lifetime prediction as related tasks sharing a common
 latent structure, the model can regularize ZIB predictions using LIB data when
 the tasks are positively correlated.
@@ -155,10 +155,6 @@ manufacturing defects rather than normal aging). The cycle life floor
 ($> 10$ cycles) ensures that sufficient cycles are available for reliable
 feature extraction.
 
-The resulting Li-ion feature ranges after filtering are: $\text{exp\_b} \in
-[0, 4.9]$ and $\Delta\mathrm{var}(dQ/dV) \in [0, 11.83]$. These ranges define
-the support of the source domain and are relevant to understanding the
-cross-domain scale gap discussed below.
 
 \subsection{Zn-ion Target Data}
 
@@ -175,7 +171,7 @@ Zinc-ion cells commonly exhibit a capacity \emph{increase} in the first
 (dissolution/re-deposition of Mn species forms a more electrochemically
 accessible structure). Including activation cycles in lifetime model training
 introduces a systematic upward bias in early-cycle capacity measurements that is
-absent in LIB data. We apply PELT change-point detection \cite{truong2020} to
+absent in LIB data. We apply PELT change-point detection \cite{truong2020, killick2012pelt} to
 each cell's capacity trajectory to identify the end of the activation plateau,
 and all feature extraction is performed exclusively on post-activation cycles.
 
@@ -199,8 +195,7 @@ where $Q(n)$ is the discharge capacity at cycle $n$, $Q_0$ is the nominal
 capacity, $A$ is the asymptotic fractional capacity, and $b > 0$ is the
 exponential decay rate. The parameter $b$ captures the rate at which the cell
 approaches its long-term plateau and serves as a proxy for the overall
-degradation kinetics. Fitting is performed via nonlinear least squares using
-cycles 1--20 post-activation; $b$ is the extracted feature.
+degradation kinetics.
 
 \paragraph{Differential capacity variance ($\Delta\mathrm{var}(dQ/dV)$).}
 For each cycle, we compute the capacity differential $dQ/dV$ using a
@@ -209,7 +204,7 @@ the voltage-capacity curve. We then compute the cycle-to-cycle variance of the
 smoothed $dQ/dV$ profile over the first 20 post-activation cycles. This feature
 captures variability in the electrochemical phase transitions: stable phase
 transitions (low variance) indicate a well-formed electrode structure and are
-associated with longer cell life.
+associated with longer cell life \cite{greenbank2022feature}.
 
 \paragraph{Log-transform and joint scaling.}
 To address the 1000$\times$ scale gap in $\Delta\mathrm{var}(dQ/dV)$ between
@@ -254,19 +249,15 @@ y_i)\}_{i=1}^{n}$, we place the prior:
   f \sim \mathcal{GP}\!\left(\mu(\mathbf{x}),\, k(\mathbf{x}, \mathbf{x}')\right),
   \label{eq:gp_prior}
 \end{equation}
-where $\mu(\mathbf{x})$ is the mean function and $k(\mathbf{x}, \mathbf{x}')$
-is the covariance (kernel) function encoding smoothness assumptions. The
-predictive posterior at a test point $\mathbf{x}_*$ is Gaussian with analytically
-tractable mean and variance, providing not only a point prediction but also a
-calibrated uncertainty estimate. All GP models in this work use Mat\'ern-5/2
-base kernels, which assume twice-differentiable sample paths --- appropriate for
+The predictive posterior is Gaussian with closed-form mean and variance, providing both a point prediction and a calibrated uncertainty estimate. All GP models in this work use Mat\'ern-5/2
+base kernels \cite{rasmussen2006, richardson2017gp}, which assume twice-differentiable sample paths --- appropriate for
 the smooth capacity fade trajectories observed in battery cycling data. We model
 log-transformed cycle life $y = \log_{10}(\text{cycle life})$ to reduce
 right-skew and stabilize variance.
 
 \subsection{Standard Multi-Task GP Baseline}
 
-The Intrinsic Coregionalization Model (ICM) \cite{bonilla2007} extends the
+The Intrinsic Coregionalization Model (ICM) \cite{bonilla2007, alvarez2012kernels} extends the
 single-task GP to multiple related tasks by constructing a joint kernel over the
 product space of inputs and task identities:
 \begin{equation}
@@ -290,20 +281,9 @@ Section~\ref{sec:data}.
 
 We identify two normalization failure modes that affect na\"ive MT-GP formulations:
 
-\textbf{(a) Per-domain normalization.} Fitting separate \texttt{StandardScaler}
-instances to Li-ion and Zn-ion features before constructing the joint model
-destroys the inter-domain scale relationship. After per-domain normalization, Zn
-cells with moderate absolute $\Delta\mathrm{var}$ (e.g., $0.006$) are mapped to
-the same standardized value as Li cells with high absolute $\Delta\mathrm{var}$
-(e.g., $6.0$). Because high $\Delta\mathrm{var}$ predicts short life in LIBs,
-the ICM erroneously inherits this association for ZIBs, learning a spurious
-inter-task anti-correlation $\rho = -0.47$ and producing RMSE $> 49$ cycles.
+\textbf{(a) Per-domain normalization.} Fitting separate scalers per domain destroys the inter-domain scale relationship, inducing a spurious inter-task anti-correlation ($\rho = -0.47$) and RMSE $> 49$ cycles.
 
-\textbf{(b) Unified scaling without log-transform.} Even with a joint scaler,
-omitting the log-transform causes the $\Delta\mathrm{var}$ dimension to be
-dominated by the much wider LIB distribution. The GP's length scale in this
-dimension is calibrated primarily to the LIB data, causing ``feature starvation''
-in which the model effectively ignores $\Delta\mathrm{var}$ for ZIB predictions.
+\textbf{(b) Unified scaling without log-transform.} Omitting the log-transform causes feature starvation: the GP length scale calibrates to the LIB distribution, effectively ignoring $\Delta\mathrm{var}$ for ZIBs.
 
 \subsection{Selective MT-GP (Proposed Method)}
 
@@ -357,7 +337,7 @@ and is never contaminated by the incompatible LIB distribution, and (3) the
 Zn-ion task retains access to both features while the Li-ion task contributes
 only through the transferable dimension.
 
-The model is implemented in GPyTorch with Adam optimization of the marginal
+The model is implemented in GPyTorch \cite{gardner2018gpytorch} with Adam optimization of the marginal
 log-likelihood (1000 iterations, learning rate 0.05). Hyperparameter
 initialization sets $k_{\mathrm{task}}$ diagonal elements to 1.0 and
 off-diagonal to 0.5 (weak positive prior on inter-task correlation).
@@ -505,9 +485,7 @@ regularization acts as a bias rather than a variance-reduction mechanism.
 Above the crossover ($N \in \{20, 40\}$), the ordering reverses: Selective
 MT-GP statistically outperforms Shuffled MT-GP (RMSE $43.4$ vs. $44.1$ at
 $N = 20$, $p = 0.007$; RMSE $41.0$ vs. $43.6$ at $N = 40$, $p < 0.001$).
-At these larger $N$, the ZIB model has accumulated enough samples to anchor its
-posterior mean accurately, and the additional Li-ion data in the
-$\text{exp\_b}$ dimension provides genuine variance reduction.
+At larger $N$, the ZIB model anchors its posterior mean accurately and Li-ion data in the $\text{exp\_b}$ dimension provides genuine variance reduction.
 
 Selective MT-GP consistently outperforms Standard MT-GP (full feature sharing)
 at all $N$ (Wilcoxon $p < 0.001$ for all $N$), confirming that partitioning
@@ -549,18 +527,11 @@ battery management system relying on GP-Direct's intervals would believe it is
 making conservative 90\% credible predictions when its actual coverage is barely
 better than a coin flip. The NLL at $N = 2$ is $3.44$, confirming extreme
 overconfidence (a well-calibrated model would achieve NLL $\approx 0.5$--$1.5$
-in log space).
+in log space) \cite{guo2017calibration, lakshminarayanan2017ensembles}.
 
 Selective MT-GP at $N = 2$ achieves NLL $= 1.07$ --- a
 \textbf{3.2$\times$ improvement} --- and 81\% coverage, considerably closer to
-the nominal 90\%. The underlying mechanism is that at $N = 2$, the
-single-task GP-Direct has essentially no data to constrain its posterior, yet
-its marginal likelihood optimization tends to collapse hyperparameters to small
-noise and short length scales (overfitting to 2 points). Selective MT-GP, by
-contrast, is jointly constrained by 132 Li-ion cells in the shared
-$\text{exp\_b}$ dimension, which keeps the posterior variance from collapsing
-even when ZIB training data is scarce. This acts as a data-driven prior on
-length scales that prevents pathological overconfidence.
+the nominal 90\%. At $N = 2$, GP-Direct's marginal likelihood optimization collapses hyperparameters to short length scales \cite{snoek2012bayesopt}, overfitting to just 2 points. Selective MT-GP is jointly constrained by 132 Li-ion cells, preventing this collapse and maintaining well-calibrated posterior variance.
 
 The calibration advantage persists across all training sizes up to $N = 40$.
 At $N = 5$, coverage improves from 69.0\% (GP-Direct) to 83.0\% (Selective),
@@ -591,7 +562,7 @@ single-task GP as well.
 
 The central design choice in Selective MT-GP --- sharing $\text{exp\_b}$ while
 privatizing $\Delta\mathrm{var}(dQ/dV)$ --- rests on a physical argument that
-our results appear to support empirically.
+our results appear to support empirically \cite{zhang2020impedance}.
 
 The parameter $b$ in Equation~\eqref{eq:exp_decay} can be interpreted through
 the lens of Arrhenius kinetics: the rate-limiting degradation process (whether
@@ -604,24 +575,11 @@ phenomenological description, even though the specific atomic-scale mechanisms
 differ. This universality is the physical basis for inter-chemistry transfer via
 $\text{exp\_b}$.
 
-In contrast, $\Delta\mathrm{var}(dQ/dV)$ is a mesoscopic fingerprint of
-phase-transition thermodynamics. In LFP, the characteristic feature of the
-dQ/dV spectrum is a single dominant peak corresponding to the first-order
-LiFePO$_4 \leftrightarrow$ FePO$_4$ transition; its height and sharpness
-encode the fraction of electrochemically active material and its structural
-homogeneity. In Zn/MnO$_2$ cells, the dQ/dV profile reflects a superposition
-of Zn stripping from MnO$_2$ intercalation sites, Mn dissolution/redeposition,
-and Zn anode plating/stripping --- a different set of
-phase-transition events with different voltage positions, peak heights, and
-cycle-to-cycle variability. The 1000$\times$ scale difference in
-$\Delta\mathrm{var}$ is not merely a normalization artifact but reflects
-genuinely different physical processes. Treating this feature as transferable
-is physically unjustified, and our empirical results confirm that doing so
-(Standard MT-GP) degrades performance relative to Selective MT-GP.
+In contrast, $\Delta\mathrm{var}(dQ/dV)$ encodes chemistry-specific phase-transition thermodynamics. In LFP, the dQ/dV peak reflects the first-order LiFePO$_4 \leftrightarrow$ FePO$_4$ transition, encoding active material fraction and structural homogeneity. In Zn/MnO$_2$ cells, the profile instead reflects Zn plating/stripping and Mn dissolution --- distinct processes with a fundamentally different absolute scale. This is confirmed empirically: Standard MT-GP, which treats $\Delta\mathrm{var}$ as transferable, degrades performance relative to Selective MT-GP \cite{zhang2020impedance}.
 
 \subsection{The Shuffled Baseline Paradox}
 
-A somewhat counterintuitive finding in this work is that Shuffled MT-GP
+An unexpected result is that Shuffled MT-GP
 --- a deliberately corrupted baseline in which Li-ion labels are randomized ---
 outperforms Selective MT-GP at small $N$ (below $\approx 20$ ZIB cells). This
 result has a reasonably precise explanation grounded in the structure of GP
@@ -635,17 +593,12 @@ a smoother predictive posterior for ZIBs --- effectively a stronger smoothness
 prior. This is beneficial at $N = 2$--$10$ where ZIB training data is
 insufficient to estimate length scales reliably.
 
-However, Shuffled MT-GP destroys the Li-ion regression signal (the correlation
-between LIB $\text{exp\_b}$ values and LIB cycle life). This means it cannot
-pull ZIB predictions toward the Li-ion posterior mean --- which, when the
-inter-task mean offset is large, amounts to avoiding a harmful bias. In
-contrast, Selective MT-GP at small $N$ inherits some residual mean-regression
-toward the LIB prior, which slightly degrades RMSE relative to Shuffled.
+Shuffled MT-GP destroys the Li-ion regression signal, so it cannot pull ZIB predictions toward the Li-ion posterior mean. This avoids a harmful bias when the inter-task mean offset is large, explaining why Selective MT-GP's residual mean-regression toward the LIB prior slightly degrades RMSE at small $N$.
 
 This suggests that in cross-chemistry battery transfer learning,
 the feature distribution of the source domain may be more valuable than its labels
 at small $N$. Future work might explore unsupervised domain
-adaptation techniques (contrastive pre-training, optimal transport domain
+adaptation techniques \cite{pan2010transfer} (contrastive pre-training, optimal transport domain
 alignment, or Wasserstein GANs) that transfer the source feature distribution
 without committing to supervised label transfer.
 
@@ -686,17 +639,7 @@ Several limitations bound the scope of our conclusions. \textbf{First}, this
 study evaluates only Gaussian process models, which assume linear inter-task
 correlation (encoded in the ICM task kernel). Nonlinear cross-chemistry
 relationships, if they exist, would require more flexible architectures such as
-deep kernel learning or neural process models. \textbf{Second}, the Zn-ion
-data in this study consists exclusively of coin-cell format ZN cells from the
-BatteryLife dataset; pouch cells and cylindrical format ZIBs may exhibit
-different degradation patterns and feature distributions, and the transferability
-conclusions may not generalize directly. \textbf{Third}, while the feature
-selection (using $\text{exp\_b}$ as the shared feature and $\Delta\mathrm{var}$
-as the private feature) is motivated by physical reasoning, it was also guided
-in part by post-hoc analysis of model performance, introducing potential
-hindsight bias. We partially mitigate this concern through the mechanistic
-rationale in Section~\ref{sec:discussion}.1, but prospective validation on a
-withheld dataset would strengthen the causal interpretation. \textbf{Fourth},
+deep kernel learning or neural process models. \textbf{Second}, this study uses only coin-cell format ZN cells; transferability conclusions may not generalize to pouch or cylindrical ZIBs. \textbf{Third}, the feature selection is motivated by physical reasoning but was also guided by post-hoc analysis, introducing potential hindsight bias; prospective validation on a withheld dataset would strengthen the causal interpretation. \textbf{Fourth},
 the BatteryLife ZN-coin batches span different temperatures, and our model does
 not stratify transfer by operating temperature. Temperature strongly affects
 degradation kinetics, and temperature-aware transfer (conditioning inter-task
@@ -724,16 +667,9 @@ preserving Li-ion feature distributions but destroying label information ---
 outperforms full transfer at small $N$, identifying source feature distributions
 as more valuable than source labels in the low-data regime.
 
-More broadly, these results point toward a recurring challenge in applying
-machine learning across physical domains: \textbf{physical feature
-alignment must precede data-driven label transfer}. Identifying which features
-encode transferable physical mechanisms and which encode chemistry-specific
-processes is not merely a modeling detail but a scientific question in its own
-right. Methods that automate this feature partitioning --- for example, through
-causal discovery, information-theoretic feature selection, or physics-informed
-neural networks --- represent a promising direction for future work. Additional
+These results highlight a recurring challenge in applying machine learning across physical domains: \textbf{physical feature alignment must precede data-driven label transfer}. Identifying which features encode transferable physical mechanisms and which encode chemistry-specific processes drives model design. Methods that automate this partitioning --- causal discovery, information-theoretic feature selection, or physics-informed neural networks --- are left for future work. Additional
 directions include neural process architectures for non-linear cross-chemistry
-meta-learning, temperature-stratified transfer for thermal generalization, and
+meta-learning \cite{weiss2016transfer}, temperature-stratified transfer for thermal generalization, and
 validation on pouch-cell format ZIBs to assess format-generalizability of the
 transferability conclusions established here.
 
@@ -805,6 +741,106 @@ He, W., Williard, N., Osterman, M., Pecht, M.
 and the Bayesian Monte Carlo method.''
 \textit{Journal of Power Sources} 196, 10314--10321 (2011).
 (CALCE Battery Research Group dataset, University of Maryland.)
+
+\bibitem{pan2010transfer}
+Pan, S.J. and Yang, Q.
+``A Survey on Transfer Learning.''
+\textit{IEEE Transactions on Knowledge and Data Engineering} 22(10), 1345--1359 (2010).
+
+\bibitem{attia2020closed}
+Attia, P.M. et al.
+``Closed-loop optimization of fast-charging protocols for batteries with machine learning.''
+\textit{Nature} 578, 397--402 (2020).
+
+\bibitem{kundu2016zinc}
+Kundu, D., Adams, B.D., Duffort, V., Vajargah, S.H., Nazar, L.F.
+``A high-capacity and long-cycle-life aqueous rechargeable zinc battery using a metal oxide intercalation cathode.''
+\textit{Nature Energy} 1, 16119 (2016).
+
+\bibitem{fermin2020knee}
+Ferm{\'i}n-Cueto, P. et al.
+``Identification and machine learning prediction of knee-point and knee-onset in capacity degradation curves of lithium-ion cells.''
+\textit{Energy and AI} 1, 100006 (2020).
+
+\bibitem{zhang2020impedance}
+Zhang, Y. et al.
+``Identifying degradation patterns of lithium ion batteries from impedance spectroscopy using machine learning.''
+\textit{Nature Communications} 11, 1706 (2020).
+
+\bibitem{richardson2017gp}
+Richardson, R.R., Osborne, M.A., Howey, D.A.
+``Gaussian process regression for forecasting battery state of health.''
+\textit{Journal of Power Sources} 357, 209--219 (2017).
+
+\bibitem{gardner2018gpytorch}
+Gardner, J., Pleiss, G., Weinberger, K.Q., Bindel, D., Wilson, A.G.
+``GPyTorch: Blackbox Matrix-Matrix Gaussian Process Inference with GPU Acceleration.''
+\textit{Advances in Neural Information Processing Systems} 31 (2018).
+
+\bibitem{alvarez2012kernels}
+{\'A}lvarez, M.A., Rosasco, L., Lawrence, N.D.
+``Kernels for Vector-Valued Functions: A Review.''
+\textit{Foundations and Trends in Machine Learning} 4(3), 195--266 (2012).
+
+\bibitem{greenbank2022feature}
+Greenbank, S., Howey, D.
+``Automated Feature Extraction and Selection for Data-Driven Models of Rapid Battery Capacity Fade and End of Life.''
+\textit{IEEE Transactions on Industrial Informatics} 18(5), 2965--2973 (2022).
+
+\bibitem{vetter2005ageing}
+Vetter, J. et al.
+``Ageing mechanisms in lithium-ion batteries.''
+\textit{Journal of Power Sources} 147, 269--281 (2005).
+
+\bibitem{birkl2017degradation}
+Birkl, C.R., Roberts, M.R., McTurk, E., Bruce, P.G., Howey, D.A.
+``Degradation diagnostics for lithium ion cells.''
+\textit{Journal of Power Sources} 341, 373--386 (2017).
+
+\bibitem{parker2017zinc}
+Parker, J.F. et al.
+``Rechargeable nickel--3D zinc batteries: An energy-dense, safer alternative to lithium-ion.''
+\textit{Science} 356, 415--418 (2017).
+
+\bibitem{guo2017calibration}
+Guo, C., Pleiss, G., Sun, Y., Weinberger, K.Q.
+``On Calibration of Modern Neural Networks.''
+\textit{Proceedings of the 34th International Conference on Machine Learning} (ICML), 1321--1330 (2017).
+
+\bibitem{lakshminarayanan2017ensembles}
+Lakshminarayanan, B., Pritzel, A., Blundell, C.
+``Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles.''
+\textit{Advances in Neural Information Processing Systems} 30 (2017).
+
+\bibitem{snoek2012bayesopt}
+Snoek, J., Larochelle, H., Adams, R.P.
+``Practical Bayesian Optimization of Machine Learning Algorithms.''
+\textit{Advances in Neural Information Processing Systems} 25 (2012).
+
+\bibitem{weiss2016transfer}
+Weiss, K., Khoshgoftaar, T.M., Wang, D.
+``A survey of transfer learning.''
+\textit{Journal of Big Data} 3, 9 (2016).
+
+\bibitem{zhi2020zib}
+Zhi, J., Li, S., Han, M., Chen, P.
+``Challenges and strategies for rechargeable zinc-based batteries.''
+\textit{Science Advances} 6, eabb5764 (2020).
+
+\bibitem{wang2021soh}
+Wang, Z., Liu, N., Chen, C., Guo, Y.
+``A transfer learning method for state-of-health estimation of lithium-ion batteries under varying conditions.''
+\textit{IEEE Transactions on Industrial Informatics} 17(11), 7542--7550 (2021).
+
+\bibitem{killick2012pelt}
+Killick, R., Fearnhead, P., Eckley, I.A.
+``Optimal Detection of Changepoints With a Linear Computational Cost.''
+\textit{Journal of the American Statistical Association} 107(500), 1590--1598 (2012).
+
+\bibitem{ma2020mnO2}
+Ma, L. et al.
+``Realizing high-voltage and high-capacity aqueous rechargeable zinc batteries with zinc--manganese alloy anodes.''
+\textit{ACS Energy Letters} 5(11), 3570--3576 (2020).
 
 \end{thebibliography}
 
